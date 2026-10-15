@@ -962,6 +962,64 @@ function seedPeople(){
   toast('Đã nạp '+allPeople().length+' người mẫu.');render();
 }
 
+/* ================= Dữ liệu demo cho chiến dịch ================= */
+function demoPosts(c,rate,seed){
+  const list=[],a=isoToIdx(c.start),b=Math.min(TODAY,isoToIdx(c.end)),span=Math.max(1,b-a+1);
+  const mk=(p,s,k,bk)=>{const tt=c.platforms==='tt'||(c.platforms!=='fb'&&rnd(s+k+2)<(bk?.6:.45));const v=Math.round((tt?(bk?900:400):(bk?300:120))*(.3+rnd(s+k+3)*3));
+    const day=a+Math.floor(Math.pow(rnd(s+k+7),1.6)*span);const slug=noDia(p.name).replace(/\s/g,'');
+    return{id:uid(),grp:bk?'bk':'vt',code:p.code,pf:tt?'tt':'fb',url:(tt?'https://www.tiktok.com/@'+slug+'/video/':'https://www.facebook.com/'+slug+'/posts/')+(7300000000+s*10+k),
+      likes:v,cmts:Math.round(v*((bk?.1:.08)+rnd(s+k+4)*.12)),views:tt?v*(18+Math.round(rnd(s+k+5)*30)):v*6,shares:Math.round(v*.05*rnd(s+k+6)),
+      at:new Date((day+.3+rnd(s+k+8)*.6)*DAY).toISOString(),src:k===0&&rnd(s+9)<.35?'manual':'sim'};};
+  peopleIn(c.districts||[]).forEach((p,i)=>{const s=seed+i*31;const dr=rate*(.7+rnd(hashStr(p.dist)+seed)*.45);if(rnd(s)>dr)return;const n=1+Math.floor(rnd(s+1)*3);for(let k=0;k<n;k++)list.push(mk(p,s,k,false));});
+  if(c.booking)allBooking().forEach((p,i)=>{const s=seed+7777+i*37;if(rnd(s)>rate*.95)return;const n=1+Math.floor(rnd(s+1)*3);for(let k=0;k<n;k++)list.push(mk(p,s,k,true));});
+  return list;
+}
+function seedDemo(quiet){
+  if(!allPeople().length){
+    const ho=['Nguyễn','Trần','Lê','Phạm','Hoàng','Vũ','Đỗ','Bùi','Đặng','Ngô','Dương','Phan'],dem=['Văn','Thị','Minh','Thu','Quang','Ngọc','Hồng','Đức','Thanh','Hữu'],ten=['Anh','Bình','Cường','Dung','Hà','Hải','Hằng','Huy','Khánh','Lan','Linh','Mai','Nam','Nhung','Phúc','Quân','Sơn','Trang','Tùng','Yến','Thảo','Long'];
+    const pick=(arr,x)=>arr[Math.floor(rnd(x)*arr.length)];const used={};
+    D.forEach((d,di)=>{const k=(d.g==='q'?6:4)+Math.floor(rnd(di*97+5)*5);const list=[];
+      for(let i=0;i<k;i++){const x=di*1000+i;const name=pick(ho,x)+' '+pick(dem,x+1)+' '+pick(ten,x+2);let code=String(17000+Math.floor(rnd(x+3)*15000)).padStart(6,'0');while(used[code])code=String(+code+1).padStart(6,'0');used[code]=1;
+        const slug=noDia(name).replace(/\s+/g,'.');list.push({dist:d.code,name,code,email:noDia(name.split(' ').slice(-1)[0])+code.slice(-3)+'@viettel.com.vn',fb:'https://facebook.com/'+slug+code.slice(-2),tt:'https://tiktok.com/@'+slug.replace(/\./g,'')+code.slice(-2),addedAt:new Date((TODAY-60)*DAY).toISOString()});}
+      S.people[d.code]=list;savePeople(d.code);});
+  }
+  if(!(S.booking||[]).length){
+    const ho=['Nguyễn','Trần','Lê','Phạm','Hoàng','Vũ','Đỗ','Bùi'],ten=['Minh Anh','Bảo Ngọc','Gia Huy','Khánh Linh','Quốc Bảo','Thùy Dương','Hải Yến','Tuấn Kiệt','Mai Phương','Đức Mạnh'];const list=[];
+    for(let i=0;i<30;i++){const name=ho[Math.floor(rnd(i*13)*ho.length)]+' '+ten[Math.floor(rnd(i*29+5)*ten.length)];const slug=noDia(name).replace(/\s+/g,'');const code=nextBkCode(list);
+      list.push({grp:'bk',name,code,email:slug+code.slice(-2)+'@gmail.com',fb:'https://facebook.com/'+slug+code.slice(-2),tt:'https://tiktok.com/@'+slug+code.slice(-2),addedAt:new Date((TODAY-60)*DAY).toISOString()});}
+    S.booking=list;saveBooking();
+  }
+  const at=(d,h)=>new Date((TODAY+d)*DAY+(h||9)*36e5-7*36e5).toISOString(),day=d=>idxToIso(TODAY+d);
+  const allD=D.map(d=>d.code),qD=D.filter(d=>d.g==='q').map(d=>d.code);
+  const camps=[
+   {id:'demo-5g',name:'Ra mắt 5G Viettel phủ sóng toàn Hà Nội',start:day(-48),end:day(-27),platforms:'both',booking:true,districts:allD,hashtags:['#Viettel5G','#ViettelHaNoi'],
+    content:'Viettel chính thức phủ sóng 5G tại 30 quận, huyện Hà Nội. Chia sẻ trải nghiệm tốc độ 5G của bạn: đo tốc độ, quay video ngắn ở nơi bạn làm việc hoặc sinh sống.',
+    banners:[{type:'ai',headline:'5G đã phủ khắp Hà Nội',sub:'Tốc độ vượt trội, trải nghiệm ngay hôm nay',cta:'Trải nghiệm ngay',layout:'red',ratio:'1:1'},{type:'ai',headline:'Nhanh hơn mỗi ngày',sub:'Viettel 5G có mặt tại 30 quận, huyện',cta:'Tìm hiểu ngay',layout:'white',ratio:'4:5'}],
+    createdAt:at(-50),sentAt:at(-48,8.5),rate:.86,seed:101},
+   {id:'demo-wifi',name:'Home Wifi Mesh – Phủ sóng mọi góc nhà',start:day(-11),end:day(6),platforms:'both',booking:true,districts:allD,hashtags:['#ViettelHomeWifi','#ViettelHaNoi'],
+    content:'Gói Internet cáp quang kèm Wifi Mesh, phủ sóng mọi phòng. Đăng ảnh hoặc video góc làm việc tại nhà dùng Wifi Viettel kèm 2 hashtag.',
+    banners:[{type:'ai',headline:'Wifi mạnh khắp nhà',sub:'Internet cáp quang kèm thiết bị Mesh',cta:'Đăng ký ngay',layout:'split',ratio:'1:1'}],
+    createdAt:at(-13),sentAt:at(-11,8.5),rate:.62,seed:202},
+   {id:'demo-money',name:'Viettel Money – Mùa lễ hội không tiền mặt',start:day(-4),end:day(17),platforms:'tt',booking:true,districts:qD,hashtags:['#ViettelMoney','#KhongTienMat'],
+    content:'Quay video TikTok ngắn thanh toán bằng Viettel Money tại quán quen, chợ, cửa hàng tiện lợi. Video từ 15 đến 45 giây, để chế độ công khai.',
+    banners:[{type:'ai',headline:'Chạm để thanh toán',sub:'Viettel Money cho mọi giao dịch hằng ngày',cta:'Tải ứng dụng',layout:'red',ratio:'9:16'}],
+    createdAt:at(-5),sentAt:at(-4,8.5),rate:.34,seed:303},
+   {id:'demo-trian',name:'Tri ân khách hàng cuối năm 2026',start:day(9),end:day(40),platforms:'fb',booking:false,districts:allD.slice(12),hashtags:['#ViettelTriAn'],
+    content:'Chương trình tri ân khách hàng lâu năm tại các huyện ngoại thành: quà tặng, ưu đãi gia hạn cước. Chia sẻ hình ảnh sự kiện tri ân tại điểm giao dịch.',
+    banners:[],createdAt:at(-14),rate:0,seed:404}];
+  camps.forEach(c=>{if(S.campaigns[c.id])return;const{rate,seed}=c;delete c.rate;delete c.seed;c.status='created';c.createdBy='Quản lý truyền thông';
+    S.campaigns[c.id]=c;saveCamp(c.id);if(c.sentAt){S.posts[c.id]=demoPosts(c,rate,seed);savePosts(c.id);}});
+  if(!(S.settings.log||[]).length){
+    const miss=id=>{const c=S.campaigns[id];const ids=new Set((S.posts[id]||[]).map(p=>(p.grp==='bk'?'b':'v')+p.code));return peopleIn(c.districts).filter(p=>!ids.has('v'+p.code)).length+(c.booking?allBooking().filter(p=>!ids.has('b'+p.code)).length:0);};
+    const tot=id=>{const c=S.campaigns[id];return peopleIn(c.districts).length+(c.booking?allBooking().length:0);};const cap=(id,v)=>Math.min(tot(id),Math.round(v));
+    S.settings.log=[{at:at(-48,8.5),camp:'demo-5g',kind:'launch',n:tot('demo-5g'),by:'Quản lý truyền thông'},{at:at(-45,8.5),camp:'demo-5g',kind:'rem1',n:cap('demo-5g',miss('demo-5g')*2.6),by:'Tự động'},{at:at(-41,8.5),camp:'demo-5g',kind:'rem2',n:cap('demo-5g',miss('demo-5g')*1.4),by:'Tự động'},
+      {at:at(-11,8.5),camp:'demo-wifi',kind:'launch',n:tot('demo-wifi'),by:'Quản lý truyền thông'},{at:at(-8,8.5),camp:'demo-wifi',kind:'rem1',n:cap('demo-wifi',miss('demo-wifi')*1.7),by:'Tự động'},{at:at(-4,8.5),camp:'demo-wifi',kind:'rem2',n:miss('demo-wifi'),by:'Tự động'},
+      {at:at(-4,8.5),camp:'demo-money',kind:'launch',n:tot('demo-money'),by:'Quản lý truyền thông'},{at:at(-1,15),camp:'demo-money',kind:'manual',n:cap('demo-money',miss('demo-money')*.4),by:'Quản lý truyền thông'}].reverse();
+    saveSettings();
+  }
+  if(!quiet){toast('Đã nạp dữ liệu demo: '+allPeople().length+' người, '+allBooking().length+' Booking/Event, '+campList().length+' chiến dịch.');render();}
+}
+
 /* ================= Banner ================= */
 const RATIOS={'1:1':[1080,1080],'4:5':[1080,1350],'9:16':[1080,1920]};
 function wrapTxt(t,n){const w=String(t||'').split(/\s+/);const out=[];let cur='';w.forEach(x=>{if((cur+' '+x).trim().length>n&&cur){out.push(cur);cur=x;}else cur=(cur+' '+x).trim();});if(cur)out.push(cur);return out.slice(0,4);}
@@ -1028,7 +1086,7 @@ function viewCampaigns(){
   const cs=campList();
   return`<div class="head"><div><h1>Chiến dịch</h1><p class="lead">Tạo chiến dịch, chọn quận, huyện áp dụng và gửi thông báo đến email người tham gia.</p></div><button class="btn pri" data-act="newCamp">Tạo chiến dịch mới</button></div>
   ${cs.length?`<div class="camps">${cs.map(c=>{const st=campStatus(c);const n=peopleIn(c.districts||[]).length+(c.booking?(S.booking||[]).length:0);const ps=(S.posts[c.id]||[]).length;return`<button class="camp" data-act="openCamp" data-id="${c.id}"><span class="tag ${st.cls}" style="align-self:flex-start">${st.t}</span><b>${esc(c.name||'Chưa đặt tên')}</b><span class="small mut">${isoVn(c.start)} – ${isoVn(c.end)}</span><span class="small">${(c.districts||[]).length} quận, huyện${c.booking?' và Booking/Event':''}, ${nf(n)} người, ${nf(ps)} bài đã nộp</span><span class="hash small">${esc((c.hashtags||[]).join(' '))}</span></button>`;}).join('')}</div>`
-  :`<section class="panel"><div class="empty"><b>Chưa có chiến dịch nào</b><span>Tạo chiến dịch đầu tiên: nhập nội dung, thêm banner, chọn quận, huyện rồi gửi thông báo.</span><button class="btn pri" data-act="newCamp">Tạo chiến dịch mới</button></div></section>`}`;
+  :`<section class="panel"><div class="empty"><b>Chưa có chiến dịch nào</b><span>Tạo chiến dịch đầu tiên: nhập nội dung, thêm banner, chọn quận, huyện rồi gửi thông báo.</span><button class="btn pri" data-act="newCamp">Tạo chiến dịch mới</button><button class="btn" data-act="seedDemo">Nạp dữ liệu demo</button></div></section>`}`;
 }
 function viewCampEditor(){
   const d=ui.camp;const created=!!d.createdAt&&d.status!=='draft',sent=!!d.sentAt;
@@ -1543,7 +1601,7 @@ const ACT={
   delPerson:el=>{const p=findByCode(el.dataset.code);openDlg(`<h2>Xóa ${esc(p.name)}?</h2><p style="margin:0">Người này sẽ không còn trong danh sách và không được tính vào báo cáo chiến dịch.</p><div class="acts"><button class="btn" data-act="closeDlg">Hủy</button><button class="btn pri" data-act="delPersonOk" data-code="${esc(p.code)}">Xóa người tham gia</button></div>`);},
   delPersonOk:el=>{const p=findByCode(el.dataset.code);S.people[p.dist]=S.people[p.dist].filter(x=>x.code!==p.code);savePeople(p.dist);closeDlg();toast('Đã xóa '+p.name);render();},
   page:el=>{ui.pp.page+=+el.dataset.v;render();},
-  seed:seedPeople,
+  seed:seedPeople,seedDemo:()=>seedDemo(false),
   newCamp:()=>{ui.camp=newDraft();ui.ai={prompt:'',ratio:'1:1',busy:false,results:[]};render();},
   openCamp:el=>{ui.camp=clone(S.campaigns[el.dataset.id]);ui.camp.banners=ui.camp.banners||[];ui.camp.districts=ui.camp.districts||[];ui.camp.hashtags=ui.camp.hashtags||[];ui.ai={prompt:'',ratio:'1:1',busy:false,results:[]};if(el.dataset.go)ui.view='campaigns';render();},
   backCamps:()=>{ui.camp=null;render();},
@@ -1618,7 +1676,7 @@ let rzT;window.addEventListener('resize',()=>{clearTimeout(rzT);rzT=setTimeout((
 if(window.matchMedia)window.matchMedia('(prefers-color-scheme: dark)').addEventListener&&window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change',()=>{if(ui.view==='channels')render();});
 
 /* ================= Khởi động ================= */
-prefLoad();lsLoad();if(STANDALONE){gdRestore();if(gdCid())gdLoad().catch(()=>{});}render();
+prefLoad();lsLoad();if(STANDALONE){if(!allPeople().length&&!(S.booking||[]).length&&!campList().length)seedDemo(true);gdRestore();if(gdCid())gdLoad().catch(()=>{});}render();
 window.addEventListener('load',()=>{if(ui.view==='channels')render();});
 (async()=>{
   if(!window.claude||!window.claude.use)return;

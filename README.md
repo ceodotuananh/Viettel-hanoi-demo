@@ -4,7 +4,7 @@ Bản demo theo dõi Fanpage và TikTok của 30 quận, huyện Viettel Hà N�
 
 - Toàn bộ ứng dụng nằm trong một tệp `index.html` (HTML, CSS, JavaScript thuần; Chart.js và SheetJS tải từ CDN).
 - Mở trực tiếp `index.html` trên trình duyệt hoặc triển khai lên bất kỳ static host nào (Netlify, GitHub Pages…).
-- Số liệu kênh là dữ liệu mô phỏng.
+- Số liệu kênh là dữ liệu mô phỏng. Khi mở lần đầu (trình duyệt chưa có dữ liệu), trang tự nạp dữ liệu demo: khoảng 190 người tham gia ở 30 quận, huyện, 30 thành viên Booking/Event, 4 chiến dịch (đã kết thúc, đang chạy, chưa gửi thông báo) kèm bài đăng và nhật ký nhắc nhở. Muốn nạp lại, xóa dữ liệu trang (localStorage) rồi tải lại.
 - Khi chạy ngoài claude.ai, dữ liệu (người tham gia, chiến dịch, bài đăng) được lưu trong `localStorage` của trình duyệt, chưa dùng chung giữa nhiều người. Tải file Excel chạy trực tiếp trên trình duyệt; Google Drive cần cấu hình một lần (xem bên dưới).
 
 Nguồn: Artifact https://claude.ai/artifact/RN1X8ed9Vpcf94duT3LCrV

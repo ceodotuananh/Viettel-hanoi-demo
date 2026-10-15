@@ -407,6 +407,7 @@ function TH(id,k,label,opts){
 
 /* ================= Tải xuống ================= */
 async function saveFile(name,data,type){
+  if(!downloads&&STANDALONE){const u=URL.createObjectURL(data instanceof Blob?data:new Blob([data],{type:type||'application/octet-stream'}));const a=document.createElement('a');a.href=u;a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),4000);return;}
   if(!downloads){toast('Tải file chưa khả dụng ở chế độ xem này. Hãy mở link trên claude.ai.');return;}
   try{await downloads.save({filename:name,data:data instanceof Blob?data:new Blob([data],{type:type||'application/octet-stream'})});}
   catch(e){if(e&&e.code!=='declined')toast('Không tải được file ('+(e.code||'lỗi')+').');}
@@ -757,6 +758,80 @@ function applyImport(){
   ui.pp.imp=Object.assign({},imp,{done:true});render();
 }
 const TEMPLATE_HEAD=['STT','Quận/huyện','Họ tên','Mã nhân viên','Email','Link Facebook','Link TikTok'];
+/* ================= Google Drive khi chạy ngoài claude.ai (Google Identity Services + Drive/Sheets API) ================= */
+// Dán OAuth Client ID (loại Web application) vào đây để mọi người dùng chung, ví dụ '1234-abc.apps.googleusercontent.com'.
+// Để trống thì quản lý có thể dán Client ID ngay trên trang (lưu trên trình duyệt). Xem README.md.
+const GOOGLE_CLIENT_ID='';
+const STANDALONE=!(window.claude&&window.claude.use);
+const GD_SCOPES=['https://www.googleapis.com/auth/drive.file','https://www.googleapis.com/auth/spreadsheets.readonly'];
+const GD_KEY=LS+'-gclient';
+const gd={tok:null,exp:0,email:'',client:null,cid:null,loading:null,waiters:null};
+const gdCid=()=>{if(GOOGLE_CLIENT_ID)return GOOGLE_CLIENT_ID;try{return localStorage.getItem(GD_KEY)||'';}catch(e){return'';}};
+const gdOn=()=>!!gd.tok&&Date.now()<gd.exp;
+const gdReady=()=>!!(window.google&&google.accounts&&google.accounts.oauth2);
+function gdLoad(){if(gdReady())return Promise.resolve();
+  if(!gd.loading)gd.loading=new Promise((ok,no)=>{const sc=document.createElement('script');sc.src='https://accounts.google.com/gsi/client';sc.async=true;sc.onload=ok;sc.onerror=()=>{gd.loading=null;no({code:'gd_load'});};document.head.appendChild(sc);});
+  return gd.loading;}
+function gdKeep(){try{if(gd.tok)sessionStorage.setItem(GD_KEY+'-tok',JSON.stringify({tok:gd.tok,exp:gd.exp,email:gd.email}));else sessionStorage.removeItem(GD_KEY+'-tok');}catch(e){}}
+function gdRestore(){try{const v=JSON.parse(sessionStorage.getItem(GD_KEY+'-tok')||'null');if(v&&v.exp>Date.now()){gd.tok=v.tok;gd.exp=v.exp;gd.email=v.email||'';}}catch(e){}}
+/* Phải gọi đồng bộ trong sự kiện bấm nút để trình duyệt không chặn cửa sổ đăng nhập Google. */
+function gdToken(){
+  if(gdOn())return Promise.resolve(gd.tok);
+  const cid=gdCid();if(!cid)return Promise.reject({code:'gd_no_client'});
+  if(!gdReady())return gdLoad().then(()=>Promise.reject({code:'gd_retry'}));
+  if(!gd.client||gd.cid!==cid){gd.cid=cid;gd.client=google.accounts.oauth2.initTokenClient({client_id:cid,scope:GD_SCOPES.join(' '),
+    callback:r=>{const w=gd.waiters;gd.waiters=null;if(!w)return;
+      if(r.error){w.no({code:r.error==='access_denied'?'gd_denied':'gd_auth'});return;}
+      if(!google.accounts.oauth2.hasGrantedAllScopes(r,...GD_SCOPES)){w.no({code:'gd_scope'});return;}
+      gd.tok=r.access_token;gd.exp=Date.now()+((+r.expires_in||3600)-60)*1000;gdKeep();w.ok(gd.tok);},
+    error_callback:e=>{const w=gd.waiters;gd.waiters=null;if(w)w.no({code:e&&e.type==='popup_closed'?'gd_closed':e&&e.type==='popup_failed_to_open'?'gd_popup':'gd_auth'});}});}
+  return new Promise((ok,no)=>{if(gd.waiters)gd.waiters.no({code:'gd_closed'});gd.waiters={ok,no};gd.client.requestAccessToken({prompt:gd.email?'':'select_account'});});
+}
+async function gdFetch(url,opt){
+  const t=await gdToken();opt=Object.assign({},opt||{});opt.headers=Object.assign({Authorization:'Bearer '+t},opt.headers||{});
+  let r;try{r=await fetch(url,opt);}catch(e){throw{code:'server_unavailable'};}
+  if(r.status===401){gd.tok=null;gdKeep();throw{code:'gd_expired'};}
+  if(!r.ok)throw{code:r.status===403?'gd_forbidden':r.status===404?'gd_notfound':r.status===400?'gd_bad':'tool_error'};
+  return r.json();
+}
+async function gdConnect(){
+  ui.pp.gsErr='';
+  try{await gdToken();const a=await gdFetch('https://www.googleapis.com/drive/v3/about?fields=user(emailAddress)');gd.email=a.user&&a.user.emailAddress||'';gdKeep();
+    toast('Đã kết nối Google Drive'+(gd.email?' ('+gd.email+')':'')+'.');}
+  catch(e){ui.pp.gsErr=mcpMsg(e);}
+  render();
+}
+function gdDisconnect(){const t=gd.tok;gd.tok=null;gd.exp=0;gd.email='';gdKeep();
+  if(t&&gdReady())try{google.accounts.oauth2.revoke(t,()=>{});}catch(e){}
+  toast('Đã ngắt kết nối Google Drive.');render();}
+function gdSaveCid(){const i=$('#gdCid');const v=(i?i.value:'').trim();
+  if(!/\.apps\.googleusercontent\.com$/.test(v)){toast('Client ID có dạng …apps.googleusercontent.com');return;}
+  try{localStorage.setItem(GD_KEY,v);}catch(e){toast('Trình duyệt không cho lưu Client ID. Hãy dán vào GOOGLE_CLIENT_ID trong index.html.');return;}
+  gd.client=null;ui.pp.gsErr='';gdLoad().catch(()=>{});render();}
+function gdResetCid(){try{localStorage.removeItem(GD_KEY);}catch(e){}gd.client=null;gdDisconnect();}
+async function gdCreateSheet(title,csv){
+  const b='vthn'+uid(),meta={name:title,mimeType:'application/vnd.google-apps.spreadsheet'};
+  const body='--'+b+'\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n'+JSON.stringify(meta)+'\r\n--'+b+'\r\nContent-Type: text/csv; charset=UTF-8\r\n\r\n'+csv+'\r\n--'+b+'--';
+  const r=await gdFetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,name,webViewLink',{method:'POST',headers:{'Content-Type':'multipart/related; boundary='+b},body});
+  return{id:r.id,title:r.name,viewUrl:r.webViewLink};
+}
+async function gdReadSheet(id){
+  const m=await gdFetch('https://sheets.googleapis.com/v4/spreadsheets/'+encodeURIComponent(id)+'?fields=properties.title,sheets.properties.title');
+  const first=m.sheets&&m.sheets[0]?m.sheets[0].properties.title:'Sheet1';
+  const v=await gdFetch('https://sheets.googleapis.com/v4/spreadsheets/'+encodeURIComponent(id)+'/values/'+encodeURIComponent("'"+first.replace(/'/g,"''")+"'"));
+  const rows=v.values||[],w=Math.max(0,...rows.map(r=>r.length));
+  return{title:m.properties&&m.properties.title||'',aoa:rows.map(r=>r.concat(Array(w-r.length).fill('')))};
+}
+function gdPanel(){
+  if(mcp)return'';
+  if(!STANDALONE)return'<p class="small mut" style="margin:0">Cần mở trang trên claude.ai và đã kết nối Google Drive. Nếu chưa, bạn có thể <a href="https://sheets.new" target="_blank" rel="noopener">mở một Google Sheet trống</a> rồi chép dòng tiêu đề từ file Excel mẫu.</p>';
+  if(!gdCid())return`<div style="display:flex;flex-direction:column;gap:8px"><p class="small mut" style="margin:0">Để kết nối Google Drive, cần một OAuth Client ID của Google Cloud (hướng dẫn trong README của kho GitHub). Dán Client ID vào đây:</p>
+    <div class="row" style="flex-wrap:nowrap"><input class="in" id="gdCid" style="flex:1" placeholder="1234-abc.apps.googleusercontent.com" aria-label="Google OAuth Client ID"><button class="btn sm" data-act="gdSaveCid">Lưu</button></div>
+    <p class="small mut" style="margin:0">Chưa có Client ID thì có thể <a href="https://sheets.new" target="_blank" rel="noopener">mở một Google Sheet trống</a> rồi chép dòng tiêu đề từ file Excel mẫu.</p></div>`;
+  const reset=GOOGLE_CLIENT_ID?'':'<button class="btn sm ghost" data-act="gdResetCid">Đổi Client ID</button>';
+  return gdOn()?`<div class="row"><span class="st ok">Đã kết nối Google Drive${gd.email?': '+esc(gd.email):''}</span><button class="btn sm ghost" data-act="gdDisconnect">Ngắt kết nối</button>${reset}</div>`
+    :`<div class="row"><button class="btn sm" data-act="gdConnect">Kết nối Google Drive</button><span class="small mut">Đăng nhập Google và cấp quyền tạo file, đọc Google Sheets.</span>${reset}</div>`;
+}
 function mcpMsg(e,what){
   const c=e&&e.code;
   return({needs_reauth:'Kết nối Google Drive đã hết hạn. Vào claude.ai, Cài đặt, Kết nối để kết nối lại Google Drive.',
@@ -766,14 +841,27 @@ function mcpMsg(e,what){
     approval_required:'Cần bạn cho phép trang dùng Google Drive. Bấm lại nút và chọn Cho phép khi claude.ai hỏi.',
     blocked_by_policy:'Tổ chức của bạn đang chặn thao tác này trên Google Drive.',
     server_unavailable:'Google Drive tạm thời không phản hồi. Thử lại sau ít phút.',
+    gd_no_client:'Chưa có Google OAuth Client ID. Dán Client ID vào ô bên dưới rồi bấm Lưu.',
+    gd_load:'Không tải được thư viện đăng nhập Google. Kiểm tra kết nối mạng hoặc trình chặn quảng cáo.',
+    gd_retry:'Đang tải thư viện đăng nhập Google. Bấm lại sau vài giây.',
+    gd_denied:'Bạn đã từ chối cấp quyền Google Drive.',
+    gd_scope:'Cần tích chọn đủ quyền Google Drive và Google Sheets trong hộp thoại cấp quyền của Google.',
+    gd_closed:'Cửa sổ đăng nhập Google đã đóng trước khi cấp quyền.',
+    gd_popup:'Trình duyệt đã chặn cửa sổ đăng nhập Google. Cho phép cửa sổ bật lên với trang này rồi thử lại.',
+    gd_auth:'Đăng nhập Google không thành công. Kiểm tra Client ID và mục Authorized JavaScript origins trong Google Cloud.',
+    gd_expired:'Phiên kết nối Google đã hết hạn. Bấm Kết nối Google Drive để kết nối lại.',
+    gd_forbidden:'Tài khoản Google đang kết nối không có quyền với file này, hoặc Google Drive API/Google Sheets API chưa được bật trong Google Cloud.',
+    gd_notfound:'Không tìm thấy file. Kiểm tra link và quyền xem của tài khoản Google đang kết nối.',
+    gd_bad:'File chưa ở định dạng Google Sheets. Mở file, chọn Tệp, Lưu dưới dạng Google Trang tính, rồi dùng link của bản mới.',
     tool_error:what==='read'?'Không đọc được file. Kiểm tra link và bảo đảm tài khoản Google của bạn có quyền xem file.':'Google Drive báo lỗi khi tạo file.'})[c]||('Không thực hiện được với Google Drive ('+(c||'lỗi')+').');
 }
 async function gsCreate(el){const bk=!!(el&&el.dataset&&el.dataset.g==='bk');
-  if(!mcp){toast('Chức năng này cần mở trang trên claude.ai và kết nối Google Drive.');return;}
+  if(!mcp&&!STANDALONE){toast('Chức năng này cần mở trang trên claude.ai và kết nối Google Drive.');return;}
   ui.pp.gsBusy=true;ui.pp.gsErr='';render();
   try{
     const csv=bk?TEMPLATE_HEAD_BK.join(',')+'\n1,Trần Thị B,,tranthib@gmail.com,https://facebook.com/tranthib,https://tiktok.com/@tranthib\n':TEMPLATE_HEAD.join(',')+'\n'+'1,Cầu Giấy,Nguyễn Văn A,NV028417,anv@viettel.com.vn,https://facebook.com/nguyenvana,https://tiktok.com/@nguyenvana\n';
-    const r=await mcp.callTool('Google Drive','create_file',{title:bk?'Danh sách Booking/Event - Viettel Hà Nội':'Danh sách tham gia chiến dịch - Viettel Hà Nội',contentMimeType:'text/csv',textContent:csv});
+    const title=bk?'Danh sách Booking/Event - Viettel Hà Nội':'Danh sách tham gia chiến dịch - Viettel Hà Nội';
+    const r=mcp?await mcp.callTool('Google Drive','create_file',{title,contentMimeType:'text/csv',textContent:csv}):{payload:await gdCreateSheet(title,csv)};
     const p=r&&r.payload||{};
     const url=p.viewUrl||(p.id?'https://docs.google.com/spreadsheets/d/'+p.id+'/edit':'');
     if(bk){ui.pp.gsCreatedBk={url};ui.pp.gsLinkBk=url;S.settings.gsUrlBk=url;}else{ui.pp.gsCreated={url,title:p.title||'Danh sách tham gia chiến dịch'};ui.pp.gsLink=url;S.settings.gsUrl=url;}saveSettings();
@@ -784,15 +872,18 @@ async function gsSync(el){const bk=!!(el&&el.dataset&&el.dataset.g==='bk');
   const inp=$(bk?'#gsLinkBk':'#gsLink');const link=(inp?inp.value:(bk?ui.pp.gsLinkBk:ui.pp.gsLink)||'').trim();if(bk)ui.pp.gsLinkBk=link;else ui.pp.gsLink=link;
   const m=link.match(/\/d\/([a-zA-Z0-9_-]{20,})/)||link.match(/^([a-zA-Z0-9_-]{25,})$/);
   if(!m){ui.pp.gsErr='Dán link Google Sheet có dạng https://docs.google.com/spreadsheets/d/…';render();return;}
-  if(!mcp){toast('Chức năng này cần mở trang trên claude.ai và kết nối Google Drive.');return;}
+  if(!mcp&&!STANDALONE){toast('Chức năng này cần mở trang trên claude.ai và kết nối Google Drive.');return;}
   ui.pp.gsBusy=true;ui.pp.gsErr='';render();
   try{
+    let aoa,title;
+    if(mcp){
     const r=await mcp.callTool('Google Drive','download_file_content',{fileId:m[1],exportMimeType:'text/csv'});
     const p=r&&r.payload||{};if(!p.content)throw{code:'tool_error'};
     const bin=atob(String(p.content).replace(/-/g,'+').replace(/_/g,'/'));const bytes=Uint8Array.from(bin,ch=>ch.charCodeAt(0));
     const text=new TextDecoder('utf-8').decode(bytes).replace(/^\uFEFF/,'');
-    const wb=XLSX.read(text,{type:'string',raw:true});const aoa=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{header:1,raw:false,defval:''});
-    ui.pp.imp=Object.assign((bk?parseRowsBk:parseRows)(aoa),{src:'Google Sheet "'+(p.title||'')+'"'});
+    const wb=XLSX.read(text,{type:'string',raw:true});aoa=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{header:1,raw:false,defval:''});title=p.title;
+    }else({aoa,title}=await gdReadSheet(m[1]));
+    ui.pp.imp=Object.assign((bk?parseRowsBk:parseRows)(aoa),{src:'Google Sheet "'+(title||'')+'"'});
     if(bk)S.settings.gsUrlBk=link;else S.settings.gsUrl=link;saveSettings();
   }catch(e){ui.pp.gsErr=mcpMsg(e,'read');}
   ui.pp.gsBusy=false;render();
@@ -814,7 +905,7 @@ function viewPeopleVT(){
    <div class="gs"><div class="row" style="flex-wrap:nowrap;align-items:flex-start;gap:12px"><span class="gs-ico" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M4 9h16M4 15h16M10 9v12"/></svg></span>
     <div><h3>Tạo form trực tiếp trên Google Sheets</h3><p class="hint">Hệ thống tạo sẵn một Google Sheet có đủ cột trong Google Drive của bạn. Chia sẻ link sheet cho các quận, huyện cùng điền.</p></div></div>
     <div class="row"><button class="btn pri" data-act="gsCreate" ${p.gsBusy?'disabled':''}>${p.gsBusy?'Đang làm việc với Google Drive…':'Tạo Google Sheet mẫu'}</button>${gsUrl?`<a class="btn" href="${esc(gsUrl)}" target="_blank" rel="noopener">Mở Google Sheet${p.gsCreated?' vừa tạo':' đang dùng'}</a>`:''}</div>
-    ${!mcp?'<p class="small mut" style="margin:0">Cần mở trang trên claude.ai và đã kết nối Google Drive. Nếu chưa, bạn có thể <a href="https://sheets.new" target="_blank" rel="noopener">mở một Google Sheet trống</a> rồi chép dòng tiêu đề từ file Excel mẫu.</p>':''}</div>
+    ${gdPanel()}</div>
    <div class="gs"><div class="row" style="flex-wrap:nowrap;align-items:flex-start;gap:12px"><span class="gs-ico" style="background:var(--grad)" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><path d="M12 4v11M7 10l5 5 5-5M4 20h16"/></svg></span>
     <div><h3>Tải form Excel</h3><p class="hint">File .xlsx có sẵn dòng tiêu đề, một dòng ví dụ và bảng mã 30 quận, huyện.</p></div></div>
     <div class="row"><button class="btn" data-act="template">Tải form Excel</button><button class="btn sm ghost" data-act="codes">Xem bảng mã quận, huyện</button></div></div>
@@ -1279,7 +1370,7 @@ function viewPeopleBK(){
    <div class="gs"><div class="row" style="flex-wrap:nowrap;align-items:flex-start;gap:12px"><span class="gs-ico" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M4 9h16M4 15h16M10 9v12"/></svg></span>
     <div><h3>Tạo form trực tiếp trên Google Sheets</h3><p class="hint">Tạo sẵn Google Sheet đủ cột trong Google Drive của bạn để gửi cho đơn vị booking hoặc ban tổ chức sự kiện.</p></div></div>
     <div class="row"><button class="btn pri" data-act="gsCreate" data-g="bk" ${p.gsBusy?'disabled':''}>${p.gsBusy?'Đang làm việc với Google Drive…':'Tạo Google Sheet mẫu'}</button>${gsUrl?`<a class="btn" href="${esc(gsUrl)}" target="_blank" rel="noopener">Mở Google Sheet${p.gsCreatedBk?' vừa tạo':' đang dùng'}</a>`:''}</div>
-    ${!mcp?'<p class="small mut" style="margin:0">Cần mở trang trên claude.ai và đã kết nối Google Drive. Nếu chưa, bạn có thể <a href="https://sheets.new" target="_blank" rel="noopener">mở một Google Sheet trống</a> rồi chép dòng tiêu đề từ file Excel mẫu.</p>':''}</div>
+    ${gdPanel()}</div>
    <div class="gs"><div class="row" style="flex-wrap:nowrap;align-items:flex-start;gap:12px"><span class="gs-ico" style="background:var(--grad)" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><path d="M12 4v11M7 10l5 5 5-5M4 20h16"/></svg></span>
     <div><h3>Tải form Excel</h3><p class="hint">File .xlsx có sẵn dòng tiêu đề và một dòng ví dụ.</p></div></div>
     <div class="row"><button class="btn" data-act="template" data-g="bk">Tải form Excel</button></div></div>
@@ -1439,7 +1530,7 @@ const ACT={
   closeDlg:closeDlg,exportCh:exportChannels,
   pickFile:el=>{const f=$('#fileIn');f.dataset.for=el.dataset.for;f.value='';f.click();},
   pickImg:()=>{readDraft();const f=$('#imgIn');f.value='';f.click();},
-  gsCreate:gsCreate,gsSync:gsSync,
+  gsCreate:gsCreate,gsSync:gsSync,gdConnect:gdConnect,gdDisconnect:gdDisconnect,gdSaveCid:gdSaveCid,gdResetCid:gdResetCid,
   parsePaste:()=>{const t=$('#pasteBox').value;if(!t.trim()){toast('Chưa có dữ liệu để kiểm tra.');return;}const aoa=t.replace(/\r/g,'').split('\n').map(l=>l.split('\t'));ui.pp.imp=Object.assign((ui.pp.grp==='bk'?parseRowsBk:parseRows)(aoa),{src:'dữ liệu dán'});render();},
   applyImport:()=>ui.pp.imp&&ui.pp.imp.grp==='bk'?applyImportBk():applyImport(),clearImp:()=>{ui.pp.imp=null;render();},
   showErrs:()=>openDlg(`<h2>Dòng cần sửa</h2><div class="tw"><table><thead><tr><th><span class="th">Dòng</span></th><th><span class="th">Họ tên</span></th><th><span class="th">Lỗi</span></th></tr></thead><tbody>${ui.pp.imp.errs.map(e=>`<tr><td>${e.row}</td><td>${esc(e.name||'')}</td><td class="wrap">${esc(e.msg)}</td></tr>`).join('')}</tbody></table></div><div class="acts"><button class="btn pri" data-act="closeDlg">Đóng</button></div>`),
@@ -1527,7 +1618,7 @@ let rzT;window.addEventListener('resize',()=>{clearTimeout(rzT);rzT=setTimeout((
 if(window.matchMedia)window.matchMedia('(prefers-color-scheme: dark)').addEventListener&&window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change',()=>{if(ui.view==='channels')render();});
 
 /* ================= Khởi động ================= */
-prefLoad();lsLoad();render();
+prefLoad();lsLoad();if(STANDALONE){gdRestore();if(gdCid())gdLoad().catch(()=>{});}render();
 window.addEventListener('load',()=>{if(ui.view==='channels')render();});
 (async()=>{
   if(!window.claude||!window.claude.use)return;

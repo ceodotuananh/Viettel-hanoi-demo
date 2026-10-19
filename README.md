@@ -4,7 +4,7 @@ Bản demo theo dõi Fanpage và TikTok của 30 quận, huyện Viettel Hà N�
 
 - Toàn bộ ứng dụng nằm trong một tệp `index.html` (HTML, CSS, JavaScript thuần; Chart.js và SheetJS tải từ CDN).
 - Mở trực tiếp `index.html` trên trình duyệt hoặc triển khai lên bất kỳ static host nào (Netlify, GitHub Pages…).
-- Đăng nhập: Quản lý nhập tên hiển thị; người dùng nội bộ nhập số điện thoại, Booking/Event nhập email. Mật khẩu mặc định `123456`, lần đầu đăng nhập trang yêu cầu đổi mật khẩu.
+- Đăng nhập: Quản lý nhập tên hiển thị; người dùng nội bộ nhập số điện thoại, mã user (ví dụ `ANHTN_HNI_CNKD`) hoặc email; Booking/Event nhập email. Mật khẩu mặc định `123456`, lần đầu đăng nhập trang yêu cầu đổi mật khẩu.
 - Số liệu kênh là dữ liệu mô phỏng. Khi mở lần đầu (trình duyệt chưa có dữ liệu), trang tự nạp dữ liệu demo: khoảng 190 người tham gia ở 30 quận, huyện, 30 thành viên Booking/Event, 4 chiến dịch (đã kết thúc, đang chạy, chưa gửi thông báo) kèm bài đăng và nhật ký nhắc nhở. Muốn nạp lại, xóa dữ liệu trang (localStorage) rồi tải lại.
 - Khi chạy ngoài claude.ai, dữ liệu (người tham gia, chiến dịch, bài đăng) được lưu trong `localStorage` của trình duyệt, chưa dùng chung giữa nhiều người. Tải file Excel chạy trực tiếp trên trình duyệt; Google Drive cần cấu hình một lần (xem bên dưới).
 
@@ -50,3 +50,7 @@ Cấu hình trên Netlify (Site configuration → Environment variables):
 - `METRICS_API_KEY`: khóa API. Không đưa khóa vào mã nguồn.
 
 Sau khi đặt biến, chỉnh hai đoạn có chú thích trong `netlify/functions/metrics.js` cho đúng tài liệu của nhà cung cấp. Chưa cấu hình thì bài hiển thị số liệu mô phỏng, có đánh dấu rõ.
+
+## Danh sách người tham gia demo
+
+Danh sách 776 nhân viên nội bộ lấy từ file DS_CNKD (mã nhân viên = MA_USER, cụm được đổi sang mã quận, huyện của ứng dụng: NTLM→NTL, BTLM→BTL, PTO→PTH, TTI→TTR, HDC→HDU). File không có số điện thoại, email, link, nên các trường đó để trống. Trình duyệt đã có dữ liệu cũ sẽ được cập nhật danh sách này một lần khi mở trang.

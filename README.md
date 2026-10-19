@@ -40,3 +40,13 @@ Token chỉ nằm trên trình duyệt (hết hạn sau khoảng 1 giờ) và ch
 Sau đó bấm **Kết nối Google Drive**, chọn tài khoản và cho phép các quyền.
 
 Lưu ý: đăng nhập Google không chạy khi mở file trực tiếp (`file://`). Hãy mở qua web (Netlify, GitHub Pages) hoặc chạy thử trên máy bằng `python3 -m http.server 8000` rồi vào `http://localhost:8000`.
+
+## Số liệu bài đăng (Nộp báo cáo)
+
+Nhân viên dán link công khai Facebook hoặc TikTok rồi bấm **Cập nhật số liệu** để đếm lượt thích, bình luận và chia sẻ. Số liệu lấy qua hàm `netlify/functions/metrics.js`, gọi một dịch vụ dữ liệu bên thứ ba.
+
+Cấu hình trên Netlify (Site configuration → Environment variables):
+- `METRICS_API_URL`: địa chỉ endpoint của nhà cung cấp.
+- `METRICS_API_KEY`: khóa API. Không đưa khóa vào mã nguồn.
+
+Sau khi đặt biến, chỉnh hai đoạn có chú thích trong `netlify/functions/metrics.js` cho đúng tài liệu của nhà cung cấp. Chưa cấu hình thì bài hiển thị số liệu mô phỏng, có đánh dấu rõ.

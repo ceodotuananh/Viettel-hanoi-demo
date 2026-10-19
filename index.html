@@ -388,7 +388,7 @@ const ui={view:'login',role:'admin',meEmail:'',adminName:'Quản lý truyền th
  ch:{plat:'all',preset:'30',a:0,b:0,cmp:'prev',ca:null,cb:null,dists:D.map(d=>d.code),trendM:'views',distM:'views',q:'',tD:null,ctab:'h2h',hA:'CGY',hB:'DDA',cA:'CGY-fb',cB:'CGY-tt',multi:['CGY','DDA','HDG'],multiM:'views',platM:'views'},
  pp:{grp:'vt',dist:'all',q:'',page:0,bq:'',bpage:0,imp:null,mode:'merge',gsLink:'',gsLinkBk:'',gsBusy:false,gsCreated:null,gsCreatedBk:null,gsErr:''},
  camp:null,slide:{},ai:{prompt:'',ratio:'1:1',busy:false,results:[],cprompt:'',cn:5,cbusy:false,cres:[]},
- rp:{camp:null,tab:'posts',dist:'all',grp:'vt',btab:'posts'},sub:{camp:'',pf:'fb',link:'',shots:[],more:false}};
+ rp:{camp:null,tab:'posts',dist:'all',grp:'vt',btab:'posts'},sub:{camp:'',pf:'fb',link:'',more:false}};
 let db=null,assets=null,sampleFn=null,downloads=null,mcp=null,shared=false;
 const LS='vthn-social-hub-v2';
 function lsSave(){try{localStorage.setItem(LS,JSON.stringify(S));}catch(e){}}
@@ -1238,27 +1238,22 @@ function viewSubmit(){
   if(!cs.some(c=>c.id===s.camp))s.camp=cs[0]?cs[0].id:'';
   const c=S.campaigns[s.camp];
   if(c&&c.platforms!=='both')s.pf=c.platforms;
-  const mine=[];myCamps().forEach(cc=>(S.posts[cc.id]||[]).filter(p=>isMine(p,m)).forEach(p=>mine.push(Object.assign({camp:cc.name,cid:cc.id,eng:(+p.likes||0)+(+p.cmts||0)+(+p.shares||0),pfn:p.pf==='tt'?'TikTok':'Facebook',st:(p.likes||p.views||p.cmts)?'Đã có số liệu':'Chờ cập nhật số liệu'},p))));
+  const mine=[];myCamps().forEach(cc=>(S.posts[cc.id]||[]).filter(p=>isMine(p,m)).forEach(p=>mine.push(Object.assign({camp:cc.name,cid:cc.id,eng:(+p.likes||0)+(+p.cmts||0)+(+p.shares||0),pfn:p.pf==='tt'?'TikTok':'Facebook',st:p.likes!=null?(p.sim?'Số liệu mô phỏng':'Đã có số liệu'):'Chờ cập nhật số liệu'},p))));
   const rows=sortRows('mine',mine,'at',-1);
-  return`<div class="head"><div><h1>Nộp báo cáo</h1><p class="lead">Sau khi đăng bài chiến dịch, dán link bài vào đây để được ghi nhận cho bạn và cho ${esc(unitName(m))}.</p></div></div>
+  return`<div class="head"><div><h1>Nộp báo cáo</h1><p class="lead">Sau khi đăng bài chiến dịch, dán link công khai của bài vào đây. Bấm <b>Cập nhật số liệu</b> để hệ thống đếm lượt thích, bình luận và chia sẻ.</p></div></div>
   ${cs.length?`<section class="panel" aria-labelledby="sbH"><h2 id="sbH">Thông tin tham gia chiến dịch</h2>
   <label class="fld strong">Chọn chiến dịch<select class="in lg" data-bind="sub.camp">${cs.map(x=>`<option value="${x.id}" ${x.id===s.camp?'selected':''}>${esc(x.name)} (${isoVn(x.start)} – ${isoVn(x.end)})</option>`).join('')}</select></label>
   <div class="fld strong">Loại kênh<div class="optc" role="radiogroup" aria-label="Loại kênh">${[['fb','Facebook cá nhân'],['tt','TikTok cá nhân']].filter(o=>!c||c.platforms==='both'||c.platforms===o[0]).map(o=>`<label class="opt ${s.pf===o[0]?'on':''}"><input type="radio" name="pf" data-act="subPf" value="${o[0]}" ${s.pf===o[0]?'checked':''}><span class="pf ${o[0]}">${o[0]==='fb'?'FB':'TT'}</span>${o[1]}</label>`).join('')}</div></div>
-  <label class="fld strong">Link bài đăng (Facebook hoặc TikTok)<input class="in lg" id="subLink" value="${esc(s.link||'')}" placeholder="${s.pf==='tt'?'https://www.tiktok.com/@ten/video/…':'https://www.facebook.com/…'}"></label>
+  <label class="fld strong">Link bài đăng công khai (Facebook hoặc TikTok)<input class="in lg" id="subLink" value="${esc(s.link||'')}" placeholder="${s.pf==='tt'?'https://www.tiktok.com/@ten/video/…':'https://www.facebook.com/…'}"></label>
   ${c?`<p class="small mut" style="margin:0">Bài cần có: <span class="hash">${esc((c.hashtags||[]).join(' '))} ${esc(me()?tagOf(me()):'')}</span></p>`:''}
-  <div class="fld strong">Ảnh chụp màn hình bài đăng (bắt buộc, tối đa 3 ảnh)
-   <div class="row"><label class="btn pri" style="cursor:pointer">Chọn ảnh từ thư viện<input type="file" id="subFiles" accept="image/*" multiple class="vh"></label><label class="btn" style="cursor:pointer">Chụp ảnh<input type="file" id="subCam" accept="image/*" capture="environment" class="vh"></label></div>
-   <div class="row" id="subThumbs">${(s.shots||[]).map((x,i)=>`<div style="position:relative"><img src="${x}" alt="Ảnh chụp ${i+1}" style="width:110px;height:110px;object-fit:cover;border-radius:10px;border:1px solid var(--line)"><button class="btn sm" style="position:absolute;top:4px;right:4px;min-height:26px;padding:0 8px" data-act="subRm" data-i="${i}" aria-label="Xóa ảnh ${i+1}">×</button></div>`).join('')||'<span class="small mut">Chưa có ảnh nào.</span>'}</div>
-  </div>
-  <p class="small mut" style="margin:0">Số like, comment, share được AI đọc từ ảnh chụp. Quản lý có thể kiểm tra lại khi cần.</p>
   <label class="dchk" style="border:0;padding:0"><input type="checkbox" id="subOk" ${s.ok?'checked':''}><span>Tôi xác nhận bài để chế độ Công khai và có đủ hashtag ở trên</span></label>
   <p class="small" id="subMsg" style="margin:0"></p>
   <div class="row"><button class="btn pri" style="min-width:160px;min-height:46px" data-act="submitPost">Nộp báo cáo</button></div>
 </section>`
   :`<section class="panel"><div class="empty"><b>Hiện không có chiến dịch đang nhận báo cáo</b><span>Chiến dịch nhận báo cáo đến 7 ngày sau ngày kết thúc.</span></div></section>`}
-  <section class="panel flush"><div class="ph"><div><h2>Bài đã nộp (${rows.length})</h2><p class="hint">Bấm tiêu đề cột để sắp xếp. Số liệu tương tác được cập nhật khi hệ thống quét hoặc khi quản lý nhập.</p></div></div>
-  ${rows.length?`<div class="tw"><table><thead><tr>${TH('mine','at','Ngày nộp',{defK:'at',defDir:-1})}${TH('mine','camp','Chiến dịch',{defK:'at',defDir:-1,str:1})}${TH('mine','pfn','Kênh',{defK:'at',defDir:-1,str:1})}${TH('mine','url','Link',{nosort:1})}${TH('mine','likes','Thích',{defK:'at',defDir:-1,r:1})}${TH('mine','cmts','Bình luận',{defK:'at',defDir:-1,r:1})}${TH('mine','views','Lượt xem',{defK:'at',defDir:-1,r:1})}${TH('mine','eng','Tổng tương tác',{defK:'at',defDir:-1,r:1})}${TH('mine','st','Trạng thái',{defK:'at',defDir:-1,str:1})}${TH('mine','x','<span class="vh">Thao tác</span>',{nosort:1})}</tr></thead><tbody>
-  ${rows.map(p=>`<tr><td>${new Date(p.at).toLocaleDateString('vi-VN')}</td><td class="b">${esc(p.camp)}</td><td><span class="pf ${p.pf}" style="width:26px;height:26px;display:inline-grid">${p.pf==='fb'?'FB':'TT'}</span></td><td><a href="${esc(p.url)}" target="_blank" rel="noopener">${esc(p.url.replace(/^https?:\/\/(www\.)?/,'').slice(0,38))}…</a></td><td class="r">${nf(p.likes)}</td><td class="r">${nf(p.cmts)}</td><td class="r">${cf(+p.views||0)}</td><td class="r b">${nf(p.eng)}</td><td><span class="tag ${p.st==='Đã có số liệu'?'t-ok':'t-warn'}">${p.st}</span></td><td>${p.src==='manual'?`<button class="btn sm danger" data-act="delMyPost" data-cid="${p.cid}" data-id="${p.id}">Rút bài</button>`:''}</td></tr>`).join('')}</tbody></table></div>`
+  <section class="panel flush"><div class="ph"><div><h2>Bài đã nộp (${rows.length})</h2><p class="hint">Bấm <b>Cập nhật số liệu</b> ở từng bài để đếm lại lượt thích, bình luận, chia sẻ từ link công khai.</p></div></div>
+  ${rows.length?`<div class="tw"><table><thead><tr>${TH('mine','at','Ngày nộp',{defK:'at',defDir:-1})}${TH('mine','camp','Chiến dịch',{defK:'at',defDir:-1,str:1})}${TH('mine','pfn','Kênh',{defK:'at',defDir:-1,str:1})}${TH('mine','url','Link',{nosort:1})}${TH('mine','likes','Thích',{defK:'at',defDir:-1,r:1})}${TH('mine','cmts','Bình luận',{defK:'at',defDir:-1,r:1})}${TH('mine','shares','Chia sẻ',{defK:'at',defDir:-1,r:1})}${TH('mine','eng','Tổng tương tác',{defK:'at',defDir:-1,r:1})}${TH('mine','st','Trạng thái',{defK:'at',defDir:-1,str:1})}${TH('mine','x','<span class="vh">Thao tác</span>',{nosort:1})}</tr></thead><tbody>
+  ${rows.map(p=>`<tr><td>${new Date(p.at).toLocaleDateString('vi-VN')}</td><td class="b">${esc(p.camp)}</td><td><span class="pf ${p.pf}" style="width:26px;height:26px;display:inline-grid">${p.pf==='fb'?'FB':'TT'}</span></td><td><a href="${esc(p.url)}" target="_blank" rel="noopener">${esc(p.url.replace(/^https?:\/\/(www\.)?/,'').slice(0,38))}…</a></td><td class="r">${p.likes!=null?nf(p.likes):'—'}</td><td class="r">${p.likes!=null?nf(p.cmts):'—'}</td><td class="r">${p.likes!=null?nf(p.shares):'—'}</td><td class="r b">${p.likes!=null?nf(p.eng):'—'}</td><td><span class="tag ${p.likes==null?'t-warn':'t-ok'}">${p.st}</span></td><td><div class="row" style="flex-wrap:nowrap"><button class="btn sm" data-act="refreshPost" data-id="${p.id}" data-cid="${p.cid}">Cập nhật số liệu</button>${p.src==='manual'?`<button class="btn sm danger" data-act="delMyPost" data-cid="${p.cid}" data-id="${p.id}">Rút bài</button>`:''}</div></td></tr>`).join('')}</tbody></table></div>`
   :'<div class="empty"><b>Bạn chưa nộp bài nào</b><span>Bài bạn nộp sẽ hiện ở đây.</span></div>'}</section>`;
 }
 function submitPost(){
@@ -1268,13 +1263,31 @@ function submitPost(){
   const u=(($('#subLink')&&$('#subLink').value)||s.link||'').trim();s.link=u;
   if(!u)return bad('Dán link bài đăng.');
   if(!/^https?:\/\/\S+\.\S+/.test(u)||!PF_RE[s.pf].test(u))return bad('Link không đúng với kênh '+(s.pf==='fb'?'Facebook':'TikTok')+'.');
-  if(!(s.shots&&s.shots.length))return bad('Đính kèm ít nhất một ảnh chụp màn hình.');
   if(!$('#subOk').checked)return bad('Xác nhận bài để Công khai và có đủ hashtag.');
   const list=(S.posts[c.id]=S.posts[c.id]||[]);
   if(list.some(x=>x.url===u))return bad('Link này đã được nộp trước đó.');
-  const h=hashStr(u);
-  list.push({id:uid(),grp:m.grp==='bk'?'bk':'vt',code:m.code,pf:s.pf,url:u,likes:20+h%900,cmts:2+(h>>>8)%90,shares:1+(h>>>16)%60,views:s.pf==='tt'?1000+h%40000:0,shots:s.shots.slice(),at:new Date().toISOString(),src:'ai'});
-  savePosts(c.id);s.link='';s.shots=[];s.ok=false;toast('Đã nộp bài. Số liệu AI đọc từ ảnh (bản mô phỏng).');render();
+  list.push({id:uid(),grp:m.grp==='bk'?'bk':'vt',code:m.code,pf:s.pf,url:u,at:new Date().toISOString(),src:'manual'});
+  savePosts(c.id);s.link='';s.ok=false;toast('Đã nộp bài. Bấm Cập nhật số liệu để đếm lượt thích, bình luận, chia sẻ.');render();
+}
+/* Số liệu lấy qua dịch vụ bên thứ ba (Netlify Function /.netlify/functions/metrics). Chưa cấu hình thì dùng số liệu mô phỏng, có đánh dấu. */
+async function fetchMetrics(u){
+  let r;try{r=await fetch('/.netlify/functions/metrics?url='+encodeURIComponent(u));}catch(e){return{err:'network'};}
+  if(r.status===503)return{err:'not_configured'};
+  if(!r.ok)return{err:'provider'};
+  try{return await r.json();}catch(e){return{err:'provider'};}
+}
+function simMetrics(u,pf){const h=hashStr(u),v=20+h%900;return{likes:v,comments:2+(h>>>8)%90,shares:1+(h>>>16)%60,sim:true};}
+async function refreshPost(el){
+  const id=el.dataset.id;const cid=Object.keys(S.posts).find(k=>(S.posts[k]||[]).some(x=>x.id===id));
+  const p=cid&&S.posts[cid].find(x=>x.id===id);if(!p)return;
+  el.disabled=true;el.textContent='Đang cập nhật…';
+  const res=await fetchMetrics(p.url);
+  let d=res;
+  if(res.err==='not_configured'){d=simMetrics(p.url,p.pf);toast('Chưa kết nối dịch vụ số liệu. Đang hiển thị số liệu mô phỏng.');}
+  else if(res.err){toast(res.err==='network'?'Không kết nối được tới dịch vụ số liệu. Thử lại sau.':'Dịch vụ số liệu không trả về kết quả cho link này.');render();return;}
+  else toast('Đã cập nhật số liệu.');
+  p.likes=+d.likes||0;p.cmts=+d.comments||0;p.shares=+d.shares||0;p.sim=!!d.sim;p.metricsAt=new Date().toISOString();
+  savePosts(cid);render();
 }
 
 /* ================= Thống kê của tôi ================= */
@@ -2043,7 +2056,7 @@ const ACT={
     S.settings.pwChanged=Object.assign({},S.settings.pwChanged||{},{[key]:true});
     ui.forceChg=false;saveSettings();closeDlg();toast('Đã đổi mật khẩu.');render();
   },
-  subRm:el=>{ui.sub.shots.splice(+el.dataset.i,1);render();},
+  refreshPost:el=>refreshPost(el),
   resetTpl:()=>{S.settings.subject=DEFAULT_SETTINGS.subject;S.settings.body=DEFAULT_SETTINGS.body;saveSettings();render();}
 };
 const CHANGE={
@@ -2070,13 +2083,6 @@ document.addEventListener('change',e=>{const el=e.target;
 });
 function syncDots(cid){const d=document.querySelector('[data-dots="'+cid+'"]');if(d)[...d.children].forEach((x,i)=>x.classList.toggle('on',i===(ui.slide[cid]||0)));}
 let slT;document.addEventListener('scroll',e=>{const t=e.target;if(!t.classList||!t.classList.contains('track'))return;clearTimeout(slT);slT=setTimeout(()=>{const cid=t.dataset.cid;ui.slide[cid]=Math.round(t.scrollLeft/Math.max(1,t.clientWidth));syncDots(cid);},80);},true);
-async function addShots(files){
-  const s=ui.sub;s.shots=s.shots||[];const room=3-s.shots.length;
-  if(room<=0){toast('Tối đa 3 ảnh cho mỗi bài.');return;}
-  for(const f of Array.from(files).slice(0,room)){try{s.shots.push(await downscale(f,900));}catch(e){toast('Không đọc được ảnh '+f.name);}}
-  render();
-}
-document.addEventListener('change',e=>{const t=e.target;if(t.id==='subFiles'||t.id==='subCam'){if(t.files&&t.files.length)addShots(t.files);t.value='';}});
 document.addEventListener('input',e=>{if(e.target.id==='subLink')ui.sub.link=e.target.value;});
 document.addEventListener('change',e=>{if(e.target.id==='subOk')ui.sub.ok=e.target.checked;});
 let liveT;

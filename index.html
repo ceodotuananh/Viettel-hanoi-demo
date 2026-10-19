@@ -384,7 +384,7 @@ const DEFAULT_SETTINGS={remEnabled:true,remDays:3,remTime:'08:30',rem2:true,rem2
  body:'Chào anh/chị [Họ tên],\n\nChiến dịch [Tên chiến dịch] đã phát động được [Số ngày] ngày. Đến nay, hệ thống chưa ghi nhận bài đăng nào có hashtag cá nhân của anh/chị.\n\nĐể bài được tính cho [Quận, huyện], anh/chị vui lòng đăng ít nhất 1 bài trên Facebook hoặc TikTok cá nhân trước ngày [Ngày kết thúc]:\n  • Để bài ở chế độ Công khai.\n  • Dùng banner và nội dung gợi ý của chiến dịch.\n  • Gắn đủ 2 hashtag: [Hashtag chính] [Hashtag cá nhân]\n  • Sau khi đăng, vào Social Hub, mục Nộp báo cáo, dán link bài.\n\nHiện [Quận, huyện] đã có [Số người đã đăng] trên [Tổng số người] đồng nghiệp đăng bài. Bài của anh/chị sẽ giúp đơn vị lên hạng trên bảng xếp hạng chiến dịch.\n\nTrân trọng,\nBan Truyền thông, Viettel Hà Nội',
  log:[]};
 const S={people:{},booking:[],campaigns:{},posts:{},settings:clone(DEFAULT_SETTINGS)};
-const ui={view:'login',role:'admin',meEmail:'',adminName:'Quản lý truyền thông',sort:{},
+const ui={view:'login',role:'admin',loginBy:'phone',meEmail:'',adminName:'Quản lý truyền thông',sort:{},
  ch:{plat:'all',preset:'30',a:0,b:0,cmp:'prev',ca:null,cb:null,dists:D.map(d=>d.code),trendM:'views',distM:'views',q:'',tD:null,ctab:'h2h',hA:'CGY',hB:'DDA',cA:'CGY-fb',cB:'CGY-tt',multi:['CGY','DDA','HDG'],multiM:'views',platM:'views'},
  pp:{grp:'vt',dist:'all',q:'',page:0,bq:'',bpage:0,imp:null,mode:'merge',gsLink:'',gsLinkBk:'',gsBusy:false,gsCreated:null,gsCreatedBk:null,gsErr:''},
  camp:null,slide:{},ai:{prompt:'',ratio:'1:1',busy:false,results:[],cprompt:'',cn:5,cbusy:false,cres:[]},
@@ -393,8 +393,8 @@ let db=null,assets=null,sampleFn=null,downloads=null,mcp=null,shared=false;
 const LS='vthn-social-hub-v2';
 function lsSave(){try{localStorage.setItem(LS,JSON.stringify(S));}catch(e){}}
 function lsLoad(){try{const v=JSON.parse(localStorage.getItem(LS)||'null');if(v){S.people=v.people||{};S.booking=v.booking||[];S.campaigns=v.campaigns||{};S.posts=v.posts||{};S.settings=Object.assign(clone(DEFAULT_SETTINGS),v.settings||{});}}catch(e){}}
-function prefSave(){try{localStorage.setItem(LS+'-ui',JSON.stringify({role:ui.role,meEmail:ui.meEmail,adminName:ui.adminName}));}catch(e){}}
-function prefLoad(){try{const v=JSON.parse(localStorage.getItem(LS+'-ui')||'null');if(v){ui.role=v.role||'admin';ui.meEmail=v.meEmail||'';ui.adminName=v.adminName||ui.adminName;}}catch(e){}}
+function prefSave(){try{localStorage.setItem(LS+'-ui',JSON.stringify({role:ui.role,loginBy:ui.loginBy,meEmail:ui.meEmail,adminName:ui.adminName}));}catch(e){}}
+function prefLoad(){try{const v=JSON.parse(localStorage.getItem(LS+'-ui')||'null');if(v){ui.role=v.role||'admin';ui.loginBy=v.loginBy==='code'?'code':'phone';ui.meEmail=v.meEmail||'';ui.adminName=v.adminName||ui.adminName;}}catch(e){}}
 const queues={};
 function write(path,data){
   if(!db){lsSave();return Promise.resolve();}
@@ -417,7 +417,9 @@ const findBk=code=>{const u=String(code).toUpperCase();return(S.booking||[]).fin
 const personOfPost=x=>x.grp==='bk'?findBk(x.code):findByCode(x.code);
 const unitName=p=>p?(p.grp==='bk'?'Booking/Event':DM[p.dist].name):'';
 const isMine=(p,m)=>!!m&&String(p.code)===String(m.code)&&((p.grp==='bk')===(m.grp==='bk'));
-const me=()=>{const e=String(ui.meEmail||'').toLowerCase().trim(),ph=normPhone(e);return(ph&&allPeople().find(p=>p.phone===ph))||allPeople().find(p=>p.email&&p.email.toLowerCase()===e)||allBooking().find(p=>p.email&&p.email.toLowerCase()===e)||(ph&&allBooking().find(p=>p.phone===ph))||allPeople().find(p=>String(p.code).toUpperCase()===e.toUpperCase());};
+const me=()=>{const e=String(ui.meEmail||'').toLowerCase().trim();
+  if(ui.loginBy==='code'){const c=e.toUpperCase();return allPeople().find(p=>String(p.code).toUpperCase()===c)||allBooking().find(p=>String(p.code).toUpperCase()===c);}
+  const ph=normPhone(e);return(ph&&allPeople().find(p=>p.phone===ph))||allPeople().find(p=>p.email&&p.email.toLowerCase()===e)||allBooking().find(p=>p.email&&p.email.toLowerCase()===e)||(ph&&allBooking().find(p=>p.phone===ph));};
 const isBkUser=()=>ui.role!=='admin'&&!!me()&&me().grp==='bk';
 const isAdmin=()=>ui.role==='admin';
 const campList=()=>Object.values(S.campaigns).sort((a,b)=>(b.createdAt||'').localeCompare(a.createdAt||''));
@@ -559,8 +561,8 @@ function viewLogin(){
   <div class="seg" role="group" aria-label="Loại tài khoản" style="width:100%"><button style="flex:1" aria-pressed="${ui.role==='admin'}" data-act="role" data-v="admin">Quản lý</button><button style="flex:1" aria-pressed="${ui.role==='user'}" data-act="role" data-v="user">Người dùng</button></div>
   ${ui.role==='admin'?`<label class="fld strong">Tên hiển thị<input class="in lg" id="lgName" value="${esc(ui.adminName)}"></label>
    <p class="mut small" style="margin:0">Quản lý xem báo cáo toàn thành phố, nhập danh sách, tạo chiến dịch và cài đặt nhắc nhở.</p>`
-  :`<label class="fld strong">Số điện thoại (nội bộ Viettel) hoặc email (Booking/Event)<input class="in lg" id="lgEmail" list="lgList" inputmode="email" autocomplete="username" placeholder="Ví dụ 0912345678" value="${esc(ui.meEmail)}"></label><datalist id="lgList">${ppl.slice(0,500).map(p=>`<option value="${esc(p.grp==='bk'?p.email:(p.phone||p.email))}">${esc(p.name)}, ${esc(unitName(p))}</option>`).join('')}</datalist>
-   <p class="mut small" style="margin:0">${ppl.length?'Nhân viên nội bộ đăng nhập bằng số điện thoại trong danh sách tham gia, thành viên Booking/Event dùng email. Gõ vài số để chọn nhanh.':'Chưa có danh sách người tham gia. Quản lý cần nhập danh sách trước.'}</p>`}
+  :`<div class="seg" role="group" aria-label="Cách đăng nhập" style="width:100%"><button style="flex:1" aria-pressed="${ui.loginBy!=='code'}" data-act="loginBy" data-v="phone">Số điện thoại</button><button style="flex:1" aria-pressed="${ui.loginBy==='code'}" data-act="loginBy" data-v="code">Mã nhân viên</button></div>
+  ${ui.loginBy==='code'?`<label class="fld strong">Mã nhân viên<input class="in lg" id="lgEmail" autocomplete="username" placeholder="Ví dụ ANHTN_HNI_CNKD" value="${esc(ui.meEmail)}"></label><p class="mut small" style="margin:0">Nhập mã user được cấp, ví dụ ANHTN_HNI_CNKD. Thành viên Booking/Event dùng mã thành viên.</p>`:`<label class="fld strong">Số điện thoại (nội bộ Viettel) hoặc email (Booking/Event)<input class="in lg" id="lgEmail" list="lgList" inputmode="email" autocomplete="username" placeholder="Ví dụ 0912345678" value="${esc(ui.meEmail)}"></label><datalist id="lgList">${ppl.slice(0,500).map(p=>`<option value="${esc(p.grp==='bk'?p.email:(p.phone||p.email))}">${esc(p.name)}, ${esc(unitName(p))}</option>`).join('')}</datalist><p class="mut small" style="margin:0">${ppl.length?'Nhân viên nội bộ đăng nhập bằng số điện thoại trong danh sách tham gia, thành viên Booking/Event dùng email. Gõ vài số để chọn nhanh.':'Chưa có danh sách người tham gia. Quản lý cần nhập danh sách trước.'}</p>`}`}
   <label class="fld strong">Mật khẩu<input class="in lg" id="lgPw" type="password" autocomplete="current-password" placeholder="Lần đầu dùng mật khẩu 123456"></label>
   <button class="btn pri" style="min-height:48px" data-act="login">Vào hệ thống</button>
   <p class="mut small" style="margin:0">Bản thử nghiệm: chưa nối đăng nhập Viettel hay Google Workspace. Khi triển khai, người dùng nhận mã xác thực qua số điện thoại hoặc email để hệ thống nhận đúng quyền.</p></div>
@@ -1954,10 +1956,11 @@ const ACT={
   go:el=>{readDraft();ui.view=el.dataset.v;if(ui.view!=='campaigns')ui.camp=null;render();try{window.scrollTo(0,0);}catch(e){}},
   goSubmit:el=>{ui.sub.camp=el.dataset.id;ui.view='submit';render();try{window.scrollTo(0,0);}catch(e){}},
   role:el=>{ui.role=el.dataset.v;render();},
+  loginBy:el=>{ui.loginBy=el.dataset.v;ui.meEmail='';render();},
   login:()=>{
     const pw=$('#lgPw')?$('#lgPw').value:'';let key;
     if(ui.role==='admin'){const n=$('#lgName');if(n&&n.value.trim())ui.adminName=n.value.trim();key='admin';}
-    else{const e=$('#lgEmail');ui.meEmail=e?e.value.trim():'';const p=me();if(!p){toast('Số điện thoại hoặc email này chưa có trong danh sách người tham gia.');return;}key=pwKeyOf(p);}
+    else{const e=$('#lgEmail');ui.meEmail=e?e.value.trim():'';const p=me();if(!p){toast(ui.loginBy==='code'?'Mã nhân viên này chưa có trong danh sách người tham gia.':'Số điện thoại hoặc email này chưa có trong danh sách người tham gia.');return;}key=pwKeyOf(p);}
     if(!pw){toast('Nhập mật khẩu.');return;}
     if(hashStr(pw)!==pwCurrent(key)){toast('Mật khẩu không đúng.');return;}
     ui.pwKey=key;ui.forceChg=!(S.settings.pwChanged||{})[key];
